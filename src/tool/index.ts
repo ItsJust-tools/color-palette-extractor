@@ -1,10 +1,23 @@
 export { default as toolConfig } from './tool.config';
 export { templateBaseVersion } from './tool.config';
 export { templateMetadata, getPublicSiteUrl } from './template-metadata';
-export { yamlToJsonTool, convert, YamlToJsonToolDefinition } from './tool-definition';
-export { notepadTool } from './notepad-state';
-export { ToolCanvas } from './components/tool-canvas';
-export { ToolToolbar } from './components/tool-toolbar';
-export { ToolSidebar } from './components/tool-sidebar';
-export type { NotepadState } from './notepad-state';
-export type { ToolState, ConversionMode } from './types';
+export { paletteTool, PaletteToolDefinition } from './tool-definition';
+export {
+  extractPalette,
+  extractPaletteFromImage,
+  hexToRgb,
+  hexToHsl,
+  rgbToHsl,
+  rgbToHex,
+  formatRgb,
+  formatHsl,
+  nearestColorName,
+  serializeCssVariables,
+  serializeJson,
+  serializeHexArray,
+} from './palette-engine';
+export { ToolCanvas } from './components/Canvas';
+export { ToolToolbar } from './components/Toolbar';
+export { ToolSidebar } from './components/Sidebar';
+export type { ToolState, PaletteEntry } from './types';
+export { MIN_COLOR_COUNT, MAX_COLOR_COUNT, DEFAULT_COLOR_COUNT } from './types';

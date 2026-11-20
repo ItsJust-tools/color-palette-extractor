@@ -1,37 +1,54 @@
-import type { ToolConfig } from '@itsjust/core';
-import packageJson from '../../package.json';
+import type { ExportFormat } from '@itsjust/core';
 
-export const templateBaseVersion = packageJson.version;
+/** Local structural type matching @itsjust/core ToolConfig (kept import-light). */
+export interface ToolConfig {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  version: string;
+  exportFormats: ExportFormat[];
+  features: {
+    export: boolean;
+    autoSave: boolean;
+    undoRedo: boolean;
+    sidebar: boolean;
+    statusBar: boolean;
+    darkMode: boolean;
+  };
+  theme?: {
+    accent?: string;
+    accentHover?: string;
+    accentSubtle?: string;
+    brand?: string;
+    brandUrl?: string;
+    icon?: string;
+  };
+}
 
-const toolConfig = {
-  id: 'simple-notepad',
-  name: 'Notepad',
-  description: 'A clean, distraction-free notepad. Write, edit, and export your notes instantly.',
-  version: '1.3.0',
-  exportFormats: ['json', 'png', 'jpeg', 'webp', 'pdf'],
+export const toolConfig: ToolConfig = {
+  id: 'tool-1795140732',
+  name: 'Color Palette Extractor',
+  category: 'Design',
+  description:
+    'Upload or paste an image and extract a harmonized color palette from its most prominent colors, with copyable HEX/RGB/HSL values.',
+  version: '1.0.0',
+  exportFormats: ['json'],
   features: {
     export: true,
-    autoSave: true,
-    undoRedo: true,
+    autoSave: false,
+    undoRedo: false,
     sidebar: true,
     statusBar: true,
     darkMode: true,
   },
   theme: {
-    accent: '#10b981',
-    accentHover: '#059669',
-    accentSubtle: 'rgba(16, 185, 129, 0.08)',
-    brand: 'Notepad',
-    icon: '\u{1F4DF}',
+    accent: '#8b5cf6',
+    accentHover: '#7c3aed',
+    accentSubtle: 'rgba(139, 92, 246, 0.12)',
   },
-  shortcuts: [
-    {
-      title: 'Notepad',
-      shortcuts: [
-        { keys: 'Ctrl+Shift+E', label: 'Export All', description: 'exports all formats at once' },
-      ],
-    },
-  ],
-} satisfies ToolConfig;
+};
 
 export default toolConfig;
+
+export const templateBaseVersion = '1.4.0';

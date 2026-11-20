@@ -1,68 +1,174 @@
-import React from 'react';
-import { ToolState } from '../types';
+'use client';
 
-interface SidebarProps {
-  state: ToolState;
-  onChange: (state: ToolState) => void;
+import { useState } from 'react';
+import type { PaletteEntry } from '../types';
+import {
+  formatRgb,
+  formatHsl,
+  serializeCssVariables,
+  serializeJson,
+  serializeHexArray,
+} from '../palette-engine';
+
+export type CopyFormat = 'hex' | 'rgb' | 'hsl';
+
+export function entryToText(entry: PaletteEntry, format: CopyFormat): string {
+  if (format === 'rgb') return formatRgb(entry);
+  if (format === 'hsl') return formatHsl(entry);
+  return entry.hex;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ state, onChange }) => {
+export type PaletteWideFormat = 'css' | 'json' | 'hex-array';
+
+export function paletteToText(entries: PaletteEntry[], format: PaletteWideFormat): string {
+  if (format === 'css') return serializeCssVariables(entries);
+  if (format === 'json') return serializeJson(entries);
+  return serializeHexArray(entries);
+}
+
+interface SwatchProps {
+  entry: PaletteEntry;
+  index: number;
+  onCopied: (text: string, format: CopyFormat) => void;
+}
+
+export function Swatch({ entry, index, onCopied }: SwatchProps) {
+  const handleCopy = async (format: CopyFormat) => {
+    const text = entryToText(entry, format);
+    try {
+      await navigator.clipboard.writeText(text);
+      onCopied(text, format);
+    } catch {
+      onCopied(text, format);
+    }
+  };
+
   return (
-    <div className="p-4 space-y-6 text-sm bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 h-full overflow-y-auto">
-      <div>
-        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Settings</h3>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Indentation Spaces
-            </label>
-            <select
-              value={state.indent}
-              onChange={(e) => onChange({ ...state, indent: Number(e.target.value) })}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm text-gray-900 dark:text-gray-100"
-            >
-              <option value={2}>2 spaces</option>
-              <option value={4}>4 spaces</option>
-            </select>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Auto-convert</span>
-            <input
-              type="checkbox"
-              checked={state.autoConvert}
-              onChange={(e) => onChange({ ...state, autoConvert: e.target.checked })}
-              className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div>
-        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">Samples</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => onChange({
-              ...state,
-              mode: 'yaml-to-json',
-              input: 'server:\n  host: localhost\n  port: 8080\n  enabled: true\ndatabase:\n  url: postgres://localhost/db',
-            })}
-            className="w-full text-left px-3 py-2 text-xs rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            Sample YAML Config
-          </button>
-          <button
-            onClick={() => onChange({
-              ...state,
-              mode: 'json-to-yaml',
-              input: '{\n  "users": [\n    { "id": 1, "name": "Alice" },\n    { "id": 2, "name": "Bob" }\n  ]\n}',
-            })}
-            className="w-full text-left px-3 py-2 text-xs rounded bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700"
-          >
-            Sample JSON Data
-          </button>
-        </div>
+    <div
+      className="palette-swatch"
+      data-testid={`swatch-${index}`}
+      style={{ background: entry.hex }}
+    >
+      <span className="swatch-weight" title="Share of image coverage">
+        {entry.weight.toFixed(1)}%
+      </span>
+      <span className="swatch-name">{entry.name}</span>
+      <div className="swatch-actions">
+        <button
+          type="button"
+          onClick={() => handleCopy('hex')}
+          aria-label={`Copy HEX for ${entry.hex}`}
+        >
+          {entry.hex}
+        </button>
+        <button
+          type="button"
+          onClick={() => handleCopy('rgb')}
+          aria-label={`Copy RGB for ${entry.hex}`}
+        >
+          RGB
+        </button>
+        <button
+          type="button"
+          onClick={() => handleCopy('hsl')}
+          aria-label={`Copy HSL for ${entry.hex}`}
+        >
+          HSL
+        </button>
       </div>
     </div>
   );
-};
+}
+
+interface ToolSidebarProps {
+  palette: PaletteEntry[] | null;
+  onCopied: (text: string) => void;
+  onDownloadCss: () => void;
+  onDownloadPng: () => void;
+}
+
+export function ToolSidebar({ palette, onCopied, onDownloadCss, onDownloadPng }: ToolSidebarProps) {
+  const [lastCopied, setLastCopied] = useState<string | null>(null);
+
+  const copyAll = async (format: PaletteWideFormat) => {
+    if (!palette) return;
+    const text = paletteToText(palette, format);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      /* clipboard unavailable; still report */
+    }
+    setLastCopied(format);
+    onCopied(text);
+  };
+
+  return (
+    <div className="palette-sidebar">
+      <div className="sidebar-section">
+        <h3>Palette</h3>
+        {!palette && (
+          <p data-testid="no-palette">Extract colors from an image to see the palette.</p>
+        )}
+        {palette && (
+          <>
+            <div className="palette-swatches" data-testid="swatches">
+              {palette.map((entry, i) => (
+                <Swatch
+                  key={`${entry.hex}-${i}`}
+                  entry={entry}
+                  index={i}
+                  onCopied={(text) => {
+                    setLastCopied(`entry:${entry.hex}`);
+                    onCopied(text);
+                  }}
+                />
+              ))}
+            </div>
+            <div className="palette-wide-actions">
+              <button
+                type="button"
+                onClick={() => copyAll('css')}
+                aria-label="Copy all as CSS variables"
+              >
+                Copy CSS variables
+              </button>
+              <button type="button" onClick={() => copyAll('json')} aria-label="Copy all as JSON">
+                Copy JSON
+              </button>
+              <button
+                type="button"
+                onClick={() => copyAll('hex-array')}
+                aria-label="Copy all as HEX array"
+              >
+                Copy HEX array
+              </button>
+            </div>
+            <div className="palette-download-actions">
+              <button
+                type="button"
+                onClick={onDownloadCss}
+                aria-label="Download palette as .css file"
+              >
+                Download .css
+              </button>
+              <button
+                type="button"
+                onClick={onDownloadPng}
+                aria-label="Download palette as PNG strip"
+              >
+                Download PNG strip
+              </button>
+            </div>
+            {lastCopied && (
+              <p data-testid="last-copied" aria-live="polite">
+                Copied: {lastCopied}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default ToolSidebar;

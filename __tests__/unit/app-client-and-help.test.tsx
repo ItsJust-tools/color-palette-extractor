@@ -18,9 +18,7 @@ vi.mock('next/dynamic', () => ({
 
 const mockSetData = vi.fn();
 const mockToast = vi.fn();
-const mockHandleExport = vi.fn();
-const mockImport = vi.fn();
-const mockToolbarActions = { canUndo: true, canRedo: true, onUndo: vi.fn(), onRedo: vi.fn() };
+const mockToolbarActions = { canUndo: false, canRedo: false, onUndo: vi.fn(), onRedo: vi.fn() };
 
 vi.mock('@itsjust/core', () => ({
   ToolShell: ({ toolbar, sidebar, canvas, statusBar }: Record<string, unknown>) => (
@@ -31,22 +29,17 @@ vi.mock('@itsjust/core', () => ({
       <div>{statusBar as ReactNode}</div>
     </div>
   ),
-  ImportExport: ({ onShare }: { onShare?: () => void }) => (
-    <button type="button" onClick={onShare}>
-      trigger-share
-    </button>
-  ),
   useTool: () => ({
     state: {
-      data: { text: 'Hello' },
+      data: { imageRef: null, imageName: '', colorCount: 6, palette: null },
       setData: mockSetData,
       isDirty: false,
-      lastSaved: 'just now',
+      lastSaved: null,
     },
     toast: mockToast,
     supportedFormats: ['json'],
-    handleExport: mockHandleExport,
-    importFromFile: mockImport,
+    handleExport: vi.fn(),
+    importFromFile: vi.fn(),
     isImporting: false,
     toolbarActions: mockToolbarActions,
   }),
@@ -54,23 +47,33 @@ vi.mock('@itsjust/core', () => ({
 
 vi.mock('@/tool', () => ({
   toolConfig: {
-    id: 'simple-notepad',
-    name: 'Notepad',
+    id: 'tool-1795140732',
+    name: 'Color Palette Extractor',
     version: '1.0.0',
     features: { sidebar: true },
-    theme: { brand: 'Notepad' },
+    theme: { brand: 'Color Palette Extractor' },
   },
-  templateBaseVersion: '1.1.0',
-  ToolCanvas: ({ text }: { text: string }) => <div>canvas:{text}</div>,
+  templateBaseVersion: '1.4.0',
+  ToolCanvas: ({ state }: { state: { colorCount: number } }) => (
+    <div>canvas:{state.colorCount}</div>
+  ),
   ToolToolbar: () => <div>toolbar</div>,
-  ToolSidebar: ({ text }: { text: string }) => <div>sidebar:{text}</div>,
+  ToolSidebar: ({ palette }: { palette: unknown }) => <div>sidebar:{palette ? 'p' : 'none'}</div>,
 }));
 
-vi.mock('@/tool/notepad-state', () => ({
-  notepadTool: {
+vi.mock('@/tool/tool-definition', () => ({
+  paletteTool: {
     serialize: (state: unknown) => JSON.stringify(state),
-    deserialize: () => ({ success: true, data: { content: 'From Shared Url', title: '' } }),
+    deserialize: () => ({
+      success: true,
+      data: { imageRef: null, imageName: '', colorCount: 6, palette: null },
+    }),
   },
+}));
+
+vi.mock('@/tool/palette-engine', () => ({
+  extractPaletteFromImage: vi.fn(() => []),
+  serializeCssVariables: vi.fn(() => ':root {}'),
 }));
 
 describe('app client and help page', () => {
@@ -85,7 +88,7 @@ describe('app client and help page', () => {
       writable: true,
       value: vi.fn().mockResolvedValue(undefined),
     });
-    window.history.replaceState(null, '', 'http://localhost:3000/?state=e30%3D');
+    window.history.replaceState(null, '', 'http://localhost:3000/');
   });
 
   it('renders dynamic tool client wrapper', () => {
@@ -97,8 +100,9 @@ describe('app client and help page', () => {
     render(<ToolClient />);
 
     expect(screen.getByText('toolbar')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('trigger-share'));
+    fireEvent.click(screen.getByRole('button', { name: 'Share palette URL' }));
 
+    await screen.findByRole('button', { name: 'Share palette URL' });
     expect(mockToast).toHaveBeenCalled();
   });
 });

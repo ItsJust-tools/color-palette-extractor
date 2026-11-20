@@ -1,86 +1,153 @@
-import React from 'react';
-import { ToolState } from '../types';
+'use client';
 
-interface CanvasProps {
+import { useCallback, useRef, useState } from 'react';
+import type { ToolState } from '../types';
+
+interface ToolCanvasProps {
   state: ToolState;
-  onChange: (state: ToolState) => void;
+  canvasRef?: React.RefObject<HTMLDivElement | null>;
+  onImageSelected: (dataUrl: string, name: string) => void;
+  onColorCountChange: (count: number) => void;
+  isExtracting: boolean;
+  extractionError: string | null;
 }
 
-export const Canvas: React.FC<CanvasProps> = ({ state, onChange }) => {
-  const handleInput = (val: string) => {
-    const newState = { ...state, input: val };
-    onChange(newState);
-  };
+const ACCEPTED = 'image/*';
 
-  const copyOutput = () => {
-    navigator.clipboard.writeText(state.output);
-  };
+export function ToolCanvas({
+  state,
+  canvasRef,
+  onImageSelected,
+  onColorCountChange,
+  isExtracting,
+  extractionError,
+}: ToolCanvasProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [dragOver, setDragOver] = useState(false);
 
-  const downloadOutput = () => {
-    const ext = state.mode === 'yaml-to-json' ? 'json' : 'yaml';
-    const blob = new Blob([state.output], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `converted.${ext}`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const loadFile = useCallback(
+    (file: File) => {
+      if (!file.type.startsWith('image/')) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          onImageSelected(reader.result, file.name);
+        }
+      };
+      reader.readAsDataURL(file);
+    },
+    [onImageSelected]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files?.[0];
+      if (file) loadFile(file);
+    },
+    [loadFile]
+  );
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const item = Array.from(e.clipboardData.items).find((i) => i.type.startsWith('image/'));
+      const file = item?.getAsFile();
+      if (file) loadFile(file);
+    },
+    [loadFile]
+  );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 h-[calc(100vh-120px)] overflow-hidden">
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-            Input ({state.mode === 'yaml-to-json' ? 'YAML' : 'JSON'})
-          </label>
-        </div>
-        <textarea
-          value={state.input}
-          onChange={(e) => handleInput(e.target.value)}
-          placeholder={`Enter ${state.mode === 'yaml-to-json' ? 'YAML' : 'JSON'} here...`}
-          className="flex-1 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 font-mono text-xs text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-          spellCheck={false}
-        />
-      </div>
-
-      <div className="flex flex-col h-full">
-        <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-            Output ({state.mode === 'yaml-to-json' ? 'JSON' : 'YAML'})
-          </label>
-          {state.output && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={copyOutput}
-                className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                Copy
-              </button>
-              <button
-                onClick={downloadOutput}
-                className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-              >
-                Download
-              </button>
-            </div>
-          )}
-        </div>
-        <div className="relative flex-1 flex flex-col h-full">
-          <textarea
-            value={state.output}
-            readOnly
-            placeholder="Converted output will appear here..."
-            className="flex-1 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-3 font-mono text-xs text-gray-900 dark:text-gray-100 focus:outline-none resize-none"
-            spellCheck={false}
+    <div
+      ref={canvasRef}
+      className="palette-canvas"
+      role="application"
+      aria-label="Color palette extractor canvas"
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+      onPaste={handlePaste}
+      tabIndex={0}
+    >
+      {!state.imageRef && (
+        <div
+          className={`palette-dropzone ${dragOver ? 'palette-dropzone-active' : ''}`}
+          data-testid="dropzone"
+        >
+          <p>Drop an image here, paste from clipboard, or</p>
+          <button
+            type="button"
+            className="palette-upload-btn"
+            onClick={() => inputRef.current?.click()}
+            aria-label="Choose an image file"
+          >
+            Choose an image
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={ACCEPTED}
+            aria-hidden="true"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) loadFile(file);
+            }}
           />
-          {state.error && (
-            <div className="absolute bottom-3 left-3 right-3 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 px-3 py-2 rounded text-xs">
-              {state.error}
-            </div>
+        </div>
+      )}
+
+      {state.imageRef && (
+        <div className="palette-workspace">
+          <div className="palette-preview">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={state.imageRef} alt={state.imageName || 'Uploaded image'} />
+          </div>
+          <div className="palette-controls">
+            <label htmlFor="color-count">Colors: {state.colorCount}</label>
+            <input
+              id="color-count"
+              type="range"
+              min={3}
+              max={12}
+              step={1}
+              value={state.colorCount}
+              onChange={(e) => onColorCountChange(Number(e.target.value))}
+              aria-label="Number of colors to extract"
+            />
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              aria-label="Replace image"
+            >
+              Replace image
+            </button>
+            <input
+              ref={inputRef}
+              type="file"
+              accept={ACCEPTED}
+              aria-hidden="true"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) loadFile(file);
+              }}
+            />
+          </div>
+          {isExtracting && <p data-testid="extracting">Extracting colors…</p>}
+          {extractionError && (
+            <p role="alert" className="palette-error" data-testid="extraction-error">
+              {extractionError}
+            </p>
           )}
         </div>
-      </div>
+      )}
     </div>
   );
-};
+}
+
+export default ToolCanvas;
